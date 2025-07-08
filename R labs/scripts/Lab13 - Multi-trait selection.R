@@ -3,7 +3,7 @@
 # Lab 13 - Multi-trait selection
 # Roberto Fritsche-Neto
 # roberto.neto@ncsu.edu
-# Latest update: July 1, 2025
+# Latest update: July 8, 2025
 ###################################################
 # loading packages
 require(foreach)
@@ -61,7 +61,7 @@ results.st <- foreach(i = 1:length(traits),
     smpl[outlier, "value"] <- NA
     
     Za <- model.matrix(~ -1 + gid, data = smpl)
-    colnames(Za) <- colnames(Ga)
+    colnames(Za) <- gsub("gid", "", colnames(Za), fixed = T)
 
     # MME using only the classical experimental design, and gid as random
     sol <- remlf90(fixed = value ~ 1, 
@@ -70,7 +70,7 @@ results.st <- foreach(i = 1:length(traits),
                    method = "em")
     
     # reorganizing BLUPS
-    BLUPS <- data.frame(gid = colnames(Ga),
+    BLUPS <- data.frame(gid = colnames(Za),
                         trait = traits[i],
                         GEBV = sol$ranef$BV[[1]][,1])
 
@@ -103,9 +103,9 @@ sol <- remlf90(fixed = cbind(pheno[,2], pheno[,3]) ~ N + rep,
 
 ## predicted values for the test set
 blupsA <- as.matrix(sol$ranef[[1]][[1]])
-rownames(blupsA) <- colnames(Ga)
+rownames(blupsA) <- colnames(Za)
 blupsB <- as.matrix(sol$ranef[[1]][[2]])
-rownames(blupsB) <- colnames(Ga)
+rownames(blupsB) <- colnames(Za)
 
 # heritabilities
 (hm.A <- sol$var[[1]][1,1]/sum(sol$var[[1]][1,1], sol$var[[2]][1,1]))
@@ -113,7 +113,7 @@ rownames(blupsB) <- colnames(Ga)
 (LL <- logLik(sol)[1])
 
 GEBV.MT = data.frame(
-  gid = colnames(Ga),
+  gid = colnames(Za),
   GEBV_A = blupsA[,1], 
   EBV_B = blupsB[,1])
 

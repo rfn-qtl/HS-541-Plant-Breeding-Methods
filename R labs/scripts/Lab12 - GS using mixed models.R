@@ -3,13 +3,18 @@
 # Lab 12 - Genomic Selection
 # Roberto Fritsche-Neto
 # roberto.neto@ncsu.edu
-# Latest update: July 1, 2025
+# Latest update: July 8, 2025
 ###################################################
 
 # loading data
 Y <- readRDS("pheno2step")
 head(Y)
 str(Y)
+dim(Y)
+
+# add a column to model the dominance
+Y$gidD <- Y$gid
+head(Y)
 
 # loading kernels
 Ga <- readRDS("Ga")
@@ -27,13 +32,13 @@ all(Y$gid == colnames(Gd))
 
 # creating the Za for additive effects
 Za <- model.matrix(~ -1 + gid, data = Y)
-colnames(Za) <- colnames(Ga)
+colnames(Za) <- gsub("gid", "", colnames(Za), fixed = T)
 dim(Za)
 Za[1:6, 1:6]
 
 # creating the Zd for additive effects
-Zd <- model.matrix(~ -1 + gid, data = Y)
-colnames(Zd) <- colnames(Gd)
+Zd <- model.matrix(~ -1 + gidD, data = Y)
+colnames(Zd) <- gsub("gidD", "", colnames(Za), fixed = T)
 dim(Zd)
 Zd[1:6, 1:6]
 
@@ -69,7 +74,7 @@ for (r in 1:replicates) {
                    method = "em")
   
     # reorganizing BLUPS
-    BLUPS <- data.frame(gid = colnames(Ga),
+    BLUPS <- data.frame(gid = colnames(Za),
                         GEBV = sol$ranef$A[[1]][,1])
     predicted.blups <- BLUPS[BLUPS$gid %in% YGS$gid[itest], ]
     observed.blues <- Y[Y$gid %in% YGS$gid[itest],]
@@ -103,7 +108,6 @@ for (r in 1:replicates) {
 head(output_A)
 tail(output_A)
 (resultA <- apply(output_A[,4:6], 2, mean)) 
-(resultA <- apply(output_A[,4:6], 2, sd)) 
 
 # and looking at the distribution
 library(ggplot2)
@@ -132,7 +136,6 @@ cor(pred.vs.obsA[,2], pred.vs.obsA[,3])
               mode = 'markers',  
               text = ~paste('gid: ', gid)))
 
-
 # and the GEBV to compare RR-BLUP and GBLUP
 dim(GEBVs)
 head(GEBVs)
@@ -146,58 +149,11 @@ colnames(GEBVs) <- "GEBV"
 head(GEBVs)
 dim(GEBVs)
 
-###################
-## G-GLBUP vs RR-BLUP
-###################
-
-# function to estimate the variance
-vpq <- function(x){
-  p <- sum(x)/(length(x)*2)
-  pq <- p * (1 - p)
-  return(pq)
-}
-
-# load the marker dataset
-M <- readRDS("M")
-M <- M[colnames(Ga),]
-dim(M)
-
-# estimathe the marker contribution to the Vg
-vg <- 2*sum(apply(M, 2, vpq))
-
-# and finally the marker effects
-a <- t(M) %*% solve(Ga) %*% GEBVs / vg
-
-all(rownames(a) == colnames(M))
-colnames(a) <- "marker_effect"
-head(a)
-dim(a)
-
-# correlation between GBLUP and RR-BLUP
-rrblup.gbv <- M %*% a
-colnames(rrblup.gbv) <- "RR-BLUP" 
-head(rrblup.gbv)
-(pho <- round(cor(GEBVs, rrblup.gbv), 4))
-
-joint <- data.frame(gid = Y$gid, GBLUP = GEBVs, RRBLUP = rrblup.gbv)
-head(joint)
-
-(p <- plot_ly(joint, x = ~GEBV, 
-              y = ~RR.BLUP, 
-              type = 'scatter', 
-              mode = 'markers',  
-              text = ~paste('gid: ', gid)))
-
 ##################### GS using A + D model + BLUES and weights ####################
 
 # Cross-validation settings 
 nfold <- 5 # training and validation sizes
 replicates <- 5 # repeat this procedure 5 times
-
-# add a column to model the dominance
-head(Y)
-Y$gidD <- Y$gid
-head(Y)
 
 output_AD <- data.frame() # create an empty file to storage KPI
 GEGVs <- data.frame() # create an empty file to GEBV
@@ -225,7 +181,7 @@ for (r in 1:replicates) {
                    method = "em")
     
     # reorganizing BLUPS
-    BLUPS <- data.frame(gid = colnames(Ga),
+    BLUPS <- data.frame(gid = colnames(Za),
                         GEBV = sol$ranef$A[[1]][,1],
                         GEGV = sol$ranef$A[[1]][,1] + sol$ranef$D[[1]][,1]
                         )
@@ -244,7 +200,7 @@ for (r in 1:replicates) {
       )
     
     # retrieving only the genetic deviations
-    blups <- data.frame(gid = colnames(Ga),
+    blups <- data.frame(gid = colnames(Za),
                         A = sol$ranef$A[[1]][,1],
                         D = sol$ranef$D[[1]][,1],
                         GV = sol$ranef$A[[1]][,1] + sol$ranef$D[[1]][,1])

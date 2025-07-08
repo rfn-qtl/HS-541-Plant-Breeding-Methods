@@ -3,7 +3,7 @@
 # Lab 14 - GxE
 # Roberto Fritsche-Neto
 # roberto.neto@ncsu.edu
-# Latest update: July 2, 2025
+# Latest update: July 8, 2025
 ###################################################
 
 #################################### MET analysis #########################
@@ -39,6 +39,7 @@ head(sol$ranef$GN[[1]])
 ## Including genomics into the model - only the additive as an example
 Ga <- readRDS("Ga")
 Za <- model.matrix(~ -1 + gid, data = pheno)
+colnames(Za) <- gsub("gid", "", colnames(Za), fixed = T)
 
 sol2 <- remlf90(fixed = SDM ~ N + rep, 
                    random = ~ GN,
@@ -54,7 +55,6 @@ sol2$var
 sol2$fit$AIC
 # GxE deviations
 head(sol2$ranef$GN[[1]])
-
 
 ## Including genomics into the model and into the GxE
 Zge <- model.matrix(~ -1 + GN, data = pheno)
@@ -77,6 +77,7 @@ sol3$var
 (h2g.3 <- sol3$var[1,] / (sol3$var[1,] + sol3$var[2,]/loc + sol3$var[3,]/(loc*blocks)))
 (Hgxe.3 <- sol3$var[2,] / (sol3$var[1,] + sol3$var[2,] + sol3$var[3,]))
 sol3$fit$AIC
+
 # GxE deviations
 head(sol3$ranef$GN[[1]])
 

@@ -3,16 +3,13 @@
 # Lab 10 - Adjusting phenotypes and Diallels
 # Roberto Fritsche-Neto
 # roberto.neto@ncsu.edu
-# Latest update: July 1, 2025
+# Latest update: July 8, 2025
 #############################################
 
 ##################### adjusting phenotypes for two-set analysis ###############
 # loading files
 pheno <- readRDS("pheno")
 head(pheno)
-
-# selecting just the hybrids
-pheno <- droplevels.data.frame(pheno[pheno$type == "sc",])
 
 # creating a col for interaction or nested effects
 pheno$GN <- as.factor(paste0(pheno$gid, pheno$N))
@@ -62,7 +59,7 @@ pheno2step <- data.frame(gid = rownames(sol.fixed[[1]]),
                       w = w)
 head(pheno2step)
 
-#comparing the adjustemns
+# comparing the adjustments
 par(mfrow = c(1,2))
 hist(pheno2step$BLUE, col = "red", main = "BLUE", xlab = NULL)
 hist(pheno2step$dBLUP, col = "blue", main = "dBLUP", xlab = NULL)
@@ -72,6 +69,11 @@ cor(pheno2step$BLUE, pheno2step$dBLUP)
 plot(pheno2step$BLUE, pheno2step$dBLUP, xlab = "BLUES", ylab = "dBLUP" )
 abline(lm(pheno2step$dBLUP ~ pheno2step$BLUE), col = "red")
 
+# selecting only the hybrids
+(hybrids <- unique(pheno[pheno$type == "sc","gid"]))
+pheno2step <- droplevels.data.frame(pheno2step[pheno2step$gid %in% hybrids,])
+
+# saving the newest file
 saveRDS(pheno2step, "pheno2step")
 
 ################################ MATING DESIGNS #########################
@@ -87,14 +89,14 @@ Gd <- readRDS("Gd")
 Za <- model.matrix(~ -1 + gid, data = pheno)
 Za[1:5,1:5]
 dim(Za)
-colnames(Za) <- colnames(Ga)
+colnames(Za) <- gsub("gid", "", colnames(Za), fixed = T)
 all(pheno$gid %in% colnames(Za))
 # dominance
 pheno$gidD <- pheno$gid
 Zd <- model.matrix(~ -1 + gidD, data = pheno)
 Zd[1:5,1:5]
 dim(Zd)
-colnames(Zd) <- colnames(Gd)
+colnames(Zd) <- colnames(Za)
 all(pheno$gid %in% colnames(Zd)) 
 
 #################### parents and hybrids together ####################
@@ -176,19 +178,19 @@ head(pheno)
 Za.f <- model.matrix(~ -1 + female, data = phenoSC)
 Za.f[1:5,1:5]
 dim(Za.f)
-colnames(Za.f) <- colnames(Ga.f)
+colnames(Za.f) <- gsub("female", "", colnames(Za.f), fixed = T)
 all(phenoSC$female %in% colnames(Za.f))
 
 Za.m <- model.matrix(~ -1 + male, data = phenoSC)
 Za.m[1:5,1:5]
 dim(Za.m)
-colnames(Za.m) <- colnames(Ga.m)
+colnames(Za.m) <- gsub("male", "", colnames(Za.m), fixed = T)
 all(phenoSC$male %in% colnames(Za.m))
 
 Zd.sc <- model.matrix(~ -1 + gid, data = phenoSC)
 Zd.sc[1:5,1:5]
 dim(Zd.sc)
-colnames(Zd.sc) <- colnames(Gd.sc)
+colnames(Zd.sc) <- gsub("gid", "", colnames(Zd.sc), fixed = T)
 all(phenoSC$gid %in% colnames(Zd.sc))
 
 ## model
@@ -247,7 +249,8 @@ Gd.mf[1:5, 1:5] # SCA
 Zf <- model.matrix(~ -1 + female, data = pheno)
 Zm <- model.matrix(~ -1 + male, data = pheno)
 Zp <- Zf + Zm
-colnames(Zp) <- colnames(Gp)
+Zp[1:10, 1:4]
+colnames(Zp) <- gsub("female", "", colnames(Zp), fixed = T)
 dim(Zp) 
 Zp[1:10, 1:4]
 
@@ -292,7 +295,7 @@ FD$ranef$GCA
 FD$ranef$SCA
 
 # merge datasets
-SCA <- data.frame(fm = colnames(Gd.mf), 
+SCA <- data.frame(fm = colnames(Z.sca), 
                   SCA = FD$ranef$SCA[[1]]$value)
 SCA <- merge(SCA, aux)
 head(SCA)
