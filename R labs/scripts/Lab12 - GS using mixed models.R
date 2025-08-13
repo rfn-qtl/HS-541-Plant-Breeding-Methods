@@ -72,10 +72,11 @@ for (r in 1:replicates) {
                    generic = list(A = list(Za, Ga)), 
                    data = YGS, 
                    method = "em")
-  
+
     # reorganizing BLUPS
     BLUPS <- data.frame(gid = colnames(Za),
                         GEBV = sol$ranef$A[[1]][,1])
+    
     predicted.blups <- BLUPS[BLUPS$gid %in% YGS$gid[itest], ]
     observed.blues <- Y[Y$gid %in% YGS$gid[itest],]
     observed.blues <- observed.blues[match(predicted.blups$gid, observed.blues$gid),]
@@ -85,7 +86,7 @@ for (r in 1:replicates) {
       rep = r,
       fold = k,
       h2m = round(sol$var[1,]/sum(sol$var), 2),
-      PA = round(cor(predicted.blups[, 2], observed.blues[, 3]), 2),
+      PA = round(cor(predicted.blups[, 2], observed.blues[, 3], use = "pairwise.complete.obs"), 2),
       AIC = sol$fit$AIC,
       LRT = sol$fit$`-2logL`
       )
@@ -108,6 +109,7 @@ for (r in 1:replicates) {
 head(output_A)
 tail(output_A)
 (resultA <- apply(output_A[,4:6], 2, mean)) 
+apply(output_A[,4:6], 2, range)
 
 # and looking at the distribution
 library(ggplot2)
@@ -170,6 +172,7 @@ for (r in 1:replicates) {
     itest = which(sets == k)
     itrain = which(sets != k)
     YGS <- Y
+    head(YGS)
     YGS[itest, "BLUE"] <- NA # it creates the validation set
     
     # Running the model
@@ -217,6 +220,13 @@ head(output_AD)
 # and looking at the PA distribution
 library(ggplot2)
 ggplot(output_AD, aes(x = method, y = PA)) + 
+  geom_boxplot(notch = TRUE, outlier.colour = "red", outlier.shape = 16, outlier.size = 2)+
+  geom_jitter(position=position_jitter(0.2))
+
+# combining all results and methods
+results.all <- rbind(output_A, output_AD)
+
+ggplot(results.all, aes(x = method, y = PA)) + 
   geom_boxplot(notch = TRUE, outlier.colour = "red", outlier.shape = 16, outlier.size = 2)+
   geom_jitter(position=position_jitter(0.2))
 

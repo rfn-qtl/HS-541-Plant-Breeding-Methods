@@ -39,6 +39,7 @@ library(lme4)
 fit <- lm(SDM ~ type + row + col + N + gid, data = pheno)
 library(car)
 (outlier <- names(outlierTest(fit)$p))
+pheno[outlier,  "SDM"]
 pheno[outlier, "SDM"] <- NA
 
 # check the experimental design and spatial distribution
@@ -115,7 +116,7 @@ all(colnames(M) == rownames(hapmap))
 #BiocManager::install("impute")
 #devtools::install_github(repo = 'italo-granato/snpReady', ref = 'dev')
 
-#library(ASRgenomics)
+library(ASRgenomics)
 #aux2 <- ASRgenomics::snp.recode(as.matrix(M))$Mrecode
 #aux2[1:4, 1:5]
 
@@ -123,8 +124,8 @@ library(snpReady)
 QC <- raw.data(data = as.matrix(M), 
                frame = "wide", 
                hapmap = hapmap, 
-               sweep.sample = 1, 
-               maf = 0.15, 
+               sweep.sample = 1, #0.80
+               maf = 0.15, # 0.05 
                call.rate = 0.90, 
                base = TRUE, 
                imput = TRUE, 
@@ -152,7 +153,7 @@ M <- M[, non.het.markers]
 dim(M)
 
 # then, correcting the map object again
-hapmap <- hapmap[non.het.markers, ] # removing SNPs pruned by LD
+hapmap <- hapmap[non.het.markers, ]
 head(hapmap)
 dim(hapmap)
 
@@ -170,7 +171,10 @@ identical(as.character(hapmap$rs), colnames(M))
 library(SNPRelate)
 
 # hapmap
-map2 <- data.frame(snp.id = as.integer(1:dim(hapmap)[1]), snp.rs.id = hapmap$rs, chr = as.integer(hapmap$chrom), pos = as.integer(hapmap$pos))
+map2 <- data.frame(snp.id = as.integer(1:dim(hapmap)[1]), 
+                   snp.rs.id = hapmap$rs, 
+                   chr = as.integer(hapmap$chrom), 
+                   pos = as.integer(hapmap$pos))
 head(map2)
 tail(map2)
 
@@ -222,7 +226,6 @@ identical(as.character(hapmap$rs), colnames(M))
 
 # close GDS
 snpgdsClose(genofile)
-
 
 ######################## creating the marker set to hybrids as well ####################
 phenoSC <- pheno[pheno$type == "sc",]

@@ -15,6 +15,7 @@ segSites <- chip.size.1 + nQTL
 replicates <- 5
 r <- 1:replicates
 cycles <- 3
+nChr <- 7
 
 # Heritabilities by breeding stage
 #        F2,   F3,   F4,   F5,   F6,   F7
@@ -32,8 +33,8 @@ progenie.size <- 100
 set.seed(123)
 
 history <- runMacs(nInd = 400, 
-                   nChr = 7,
-                   segSites = segSites / 7, 
+                   nChr = nChr,
+                   segSites = segSites / nChr, 
                    inbred = TRUE,
                    species = "GENERIC", 
                    split = NULL, 
@@ -43,16 +44,24 @@ history <- runMacs(nInd = 400,
 SP = SimParam$new(history)
 
 # Lets add a trait, considering gamma distribution for QTL effect;  A + D effects
-SP$restrSegSites(nQTL/7, chip.size.1/7)
-SP$addTraitAD(nQtlPerChr = nQTL / 7, gamma = TRUE, mean = 0, var = 1, meanDD = add, varDD = 0.5)
+SP$restrSegSites(nQTL/nChr, chip.size.1/nChr)
+
+SP$addTraitAD(nQtlPerChr = nQTL / nChr, 
+              gamma = TRUE, 
+              mean = 0, 
+              var = 1, 
+              meanDD = add, 
+              varDD = 0.5)
 
 # add a SNP chip to our population
-SP$addSnpChip(chip.size.1/7)
+SP$addSnpChip(chip.size.1/nChr)
 
 # after the historical population (mimic the crop evolution, it is time to simulate the first years of a breeding program, like as a warm up process)
 # setting the heritability of the trait, narrow and broad sense
 SP$setVarE(h2 = h2[5], H2 = H2[5])
 firstPop <- newPop(rawPop = history, isDH = TRUE, simParam = SP)
+
+cor(firstPop@pheno, firstPop@gv)
 
 #########################################################
 # simulating the founders
@@ -91,7 +100,7 @@ for (i in 1:3) {
   
   # Progeny Row Stage 1 (Year 3)
   SP$setVarE(h2 = h2[2], H2 = H2[2])
-  f3 <- self(pop = f2, nProgeny = 1, simParam = SP)
+  f3 <- self(pop = f2sel, nProgeny = 1, simParam = SP)
   f3sel <- selectInd(pop = f3, nInd = nSelF4, trait = 1, "pheno", gender = "B", selectTop = TRUE, simParam = SP)
   
   # Preliminary Yield Test (Year 4)
@@ -111,7 +120,7 @@ for (i in 1:3) {
   
   # Foundation Increase (Year 8)
   SP$setVarE(h2 = h2[6], H2 = H2[6])
-  variety <- self(pop = f6sel, nProgeny = 1, simParam = SP)
+  variety <- f6sel
   
   # then, select the best one regardless the family
   newparents <- f4
@@ -160,7 +169,6 @@ resultsC0 <-  data.frame(
   Years = c(5)
 )
 
-
 ##############################################################
 # simulating more cycles of breeding by the Traditional Method
 ##############################################################
@@ -185,7 +193,7 @@ for (k in 1:length(r)) {
     
     # Progeny Row Stage 1 (Year 3)
     SP$setVarE(h2 = h2[2], H2 = H2[2])
-    f3 <- self(pop = f2, nProgeny = 1, simParam = SP)
+    f3 <- self(pop = f2sel, nProgeny = 1, simParam = SP)
     f3sel <- selectInd(pop = f3, nInd = nSelF4, trait = 1, "pheno", gender = "B", selectTop = TRUE, simParam = SP)
     
     # Preliminary Yield Test (Year 4)
@@ -205,7 +213,7 @@ for (k in 1:length(r)) {
     
     # Foundation Increase (Year 8)
     SP$setVarE(h2 = h2[6], H2 = H2[6])
-    variety <- self(pop = f6sel, nProgeny = 1, simParam = SP)
+    variety <- f6sel
     
     # updating the parents and pop
     newparents <- f4
@@ -275,7 +283,7 @@ for (k in 1:length(r)) {
     
     # setting the heritability of the trait, narrow and broad sense
     SP$setVarE(h2 = h2[6], H2 = H2[6])
-    variety <- self(pop = f6sel, nProgeny = 1, simParam = SP)
+    variety <- f6sel
     
     # updating the TS and marker effects
     TSi <- f3

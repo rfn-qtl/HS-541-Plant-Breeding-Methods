@@ -49,9 +49,9 @@ sol2 <- remlf90(fixed = SDM ~ N + rep,
 
 # heritability and importance of GxE
 sol2$var
-(h2g.plot.2 <- sol2$var[1,] / (sol2$var[1,] + sol2$var[2,] + sol2$var[3,]))
-(h2g.2 <- sol2$var[1,] / (sol2$var[1,] + sol2$var[2,]/loc + sol2$var[3,]/(loc*blocks)))
-(Hgxe.2 <- sol2$var[2,] / (sol2$var[1,] + sol2$var[2,] + sol2$var[3,]))
+(h2g.plot.2 <- sol2$var[2,] / (sol2$var[1,] + sol2$var[2,] + sol2$var[3,]))
+(h2g.2 <- sol2$var[2,] / (sol2$var[1,] + sol2$var[2,]/loc + sol2$var[3,]/(loc*blocks)))
+(Hgxe.2 <- sol2$var[1,] / (sol2$var[1,] + sol2$var[2,] + sol2$var[3,]))
 sol2$fit$AIC
 # GxE deviations
 head(sol2$ranef$GN[[1]])
@@ -91,10 +91,13 @@ head(sol3$ranef$GN[[1]])
 library(statgenGxE)
 
 ## Create a TD object from dropsPheno.
-dropsTD <- statgenSTA::createTD(data = pheno, genotype = "gid", trial = "N")
+dropsTD <- statgenSTA::createTD(data = pheno, 
+                                genotype = "gid", 
+                                trial = "N")
 
 ## Perform a Finlay-Wilkinson analysis for all trials.
-dropsFW <- gxeFw(TD = dropsTD, trait = "SDM")
+dropsFW <- gxeFw(TD = dropsTD, 
+                 trait = "SDM")
 summary(dropsFW)
 
 # let's take a look at the output

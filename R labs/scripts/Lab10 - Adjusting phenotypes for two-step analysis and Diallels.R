@@ -19,8 +19,8 @@ head(pheno)
 library(breedR)
 
 # First way - genotypes as fixed
-solF <- remlf90(fixed = SDMadj ~ N + gid, 
-                random = ~ rep + GN,
+solF <- remlf90(fixed = SDMadj ~ rep + N + gid, 
+                random = ~ GN,
                 method = "em",
                 data = pheno) 
                 
@@ -49,7 +49,7 @@ dblup
 
 # weights
 c <- 0.5 # this constant is amount of variation that we expect not be explained by markers
-(hg <- round(solR$var[2] / (solR$var[2] + solR$var[3]),2)) # heritability
+(hg <- round(solR$var[2] / (solR$var[2] + solR$var[3] + solR$var[4]),2)) # heritability
 (w <- (1 - hg)/(c + (1 - rel) / rel*hg))
 
 # combining the data
@@ -58,6 +58,7 @@ pheno2step <- data.frame(gid = rownames(sol.fixed[[1]]),
                       dBLUP = dblup, 
                       w = w)
 head(pheno2step)
+tail(pheno2step)
 
 # comparing the adjustments
 par(mfrow = c(1,2))
@@ -114,7 +115,7 @@ modI <- remlf90(SDMadj ~ N + rep,
 ## model A (pedigree)
 modA <- remlf90(fixed = SDMadj ~ N + rep, 
                 random = ~ 1, 
-                generic = list(A = list(Za, A)), 
+                generic = list(AD = list(Za, A)), 
                 method = "em",
                 data = pheno)
 (varA <- modA$var)
@@ -123,7 +124,7 @@ modA <- remlf90(fixed = SDMadj ~ N + rep,
 ## model Ga
 modGa <- remlf90(fixed = SDMadj ~ N + rep, 
                       random = ~ 1, 
-                      generic = list(Ga = list(Za, Ga)), 
+                      generic = list(AD = list(Za, Ga)), 
                       method = "em",
                       data = pheno)
 
@@ -133,14 +134,14 @@ modGa <- remlf90(fixed = SDMadj ~ N + rep,
 ## model Ga & Gd
 modGaGd <- remlf90(fixed = SDMadj ~ N + rep, 
                        random = ~ 1,
-                       generic = list(Ga = list(Za, Ga),
-                                      Gd = list(Zd, precision = Gd)),
+                       generic = list(AD = list(Za, Ga),
+                                      DM = list(Zd, precision = Gd)),
                        method = "em",
                        data = pheno)
 
 (varGaGd <- modGaGd$var)
-(hg.GaGd <- varGaGd[1] / (varGaGd[1] + varGaGd[2] + varGaGd[3]))
-
+(ha.GaGd <- varGaGd[1] / (varGaGd[1] + varGaGd[2] + varGaGd[3]))
+(hg.GaGd <- (varGaGd[1] + varGaGd[2]) / (varGaGd[1] + varGaGd[2] + varGaGd[3]))
 
 ###################
 # BLUPS
@@ -148,15 +149,15 @@ modGaGd <- remlf90(fixed = SDMadj ~ N + rep,
 # joint the data
 BLUPS <- data.frame(gid = colnames(Za),
                     I = modI$ranef$gid[[1]][,1],
-                    A = modA$ranef$A[[1]][,1],
-                    Ga = modGa$ranef$Ga[[1]][,1],
-                    GaGd = modGaGd$ranef$Ga[[1]][,1])
+                    A = modA$ranef$AD[[1]][,1],
+                    Ga = modGa$ranef$AD[[1]][,1],
+                    GaGd = modGaGd$ranef$AD[[1]][,1])
 
 head(BLUPS)
 
 require(PerformanceAnalytics)
 # correlarion betwwen BLUPS ontaines from differente methods
-chart.Correlation(BLUPS[,-1], histogram = TRUE, pch = 1, method = "pearson")
+chart.Correlation(BLUPS[,-1], histogram = TRUE, pch = 1, method = "spearman")
 
 
 ############### Half-diallel or NCII - GS-based method ########################
@@ -306,6 +307,7 @@ SCA <- SCA[,2:4]
 library(reshape2)
 d <- reshape(SCA, idvar = "female", timevar = "male", direction = "wide")
 dim(d)
+head(d)
 d <- d[,-1]
 colnames(d) <- gsub("SCA.", "", colnames(d), fixed = T)
 d <- d[, match(colnames(d), sort(as.numeric(colnames(d))) )]

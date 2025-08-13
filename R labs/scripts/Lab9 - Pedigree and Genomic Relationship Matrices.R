@@ -130,7 +130,10 @@ rescale.G <- function(x){
 
 Ga <- rescale.G(Ga)
 dim(Ga)
+range(Ga)
+A[1:4, 1:4]
 Ga[1:4, 1:4]
+A[52:55, 52:55]
 Ga[52:55, 52:55]
 
 # let's check the Ga matrix
@@ -143,8 +146,7 @@ check_Ga$plot.offdiag
 Gd <- G$Gd[colnames(Ga), colnames(Ga)]
 dim(Gd)
 Gd[1:4, 1:4]
-Ga[52:55, 52:55]
-
+Gd[52:55, 52:55]
 
 rescale.Gd <- function(x){
   out <- scales::rescale(c(x), to = c(0, 1)) 
@@ -156,7 +158,8 @@ rescale.Gd <- function(x){
 Gd <- rescale.Gd(Gd)
 dim(Gd)
 Gd[1:4, 1:4]
-Ga[52:55, 52:55]
+Gd[52:55, 52:55]
+range(Gd)
 
 # let's check the Gd matrix
 check_Gd <- kinship.diagnostics(K = Gd, diagonal.thr.small = 0.8,

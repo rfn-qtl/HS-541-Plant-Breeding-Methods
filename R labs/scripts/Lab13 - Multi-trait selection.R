@@ -32,12 +32,13 @@ head(pheno)
 traits <- colnames(pheno)[12:14]
   
 # estimate de phenotypic correlation
-pheno.cor <-round(cor(pheno[,traits], use = "pairwise.complete.obs", method = "pearson"), 2)
+pheno.cor <- round(cor(pheno[,traits], use = "pairwise.complete.obs", method = "pearson"), 2)
 corrplot::corrplot(pheno.cor, method = 'number', type = "lower", diag = F, col = c("red", "orange", "green", "blue"))
 
 # reorganize de data
 pheno.melted <- reshape2::melt(pheno, measure.vars = traits)
 head(pheno.melted)  
+tail(pheno.melted)
 
 # load the GRM
 Ga <- readRDS("Ga")
@@ -64,8 +65,8 @@ results.st <- foreach(i = 1:length(traits),
     colnames(Za) <- gsub("gid", "", colnames(Za), fixed = T)
 
     # MME using only the classical experimental design, and gid as random
-    sol <- remlf90(fixed = value ~ 1, 
-                   generic = list(BV = list(Za, Ga)), 
+    sol <- remlf90(fixed = value ~ rep + N, 
+                   generic = list(BV = list(Za, Ga)), # + GN 
                    data = smpl, 
                    method = "em")
     
@@ -85,21 +86,24 @@ head(GEBVs)
 
 ######################## single step (ss) multi-trait (MT) GS ################
 
-# covariance matrices 
+# covariance matrices - example with 2 traits
 covg <- matrix(c(1, cov(pheno[,12], pheno[,13], use = "pairwise.complete.obs"), 
                  cov(pheno[,12], pheno[,13], use = "pairwise.complete.obs"), 1), 2, 2)
 colnames(covg) <- rownames(covg) <- colnames(pheno)[12:13]
 covg
 
 covr <- matrix(c(1, 0, 0, 1), 2, 2)
-colnames(covr) <- rownames(covr) <- colnames(pheno)[2:3]
+colnames(covr) <- rownames(covr) <- colnames(pheno)[12:13]
 covr
 
-sol <- remlf90(fixed = cbind(pheno[,2], pheno[,3]) ~ N + rep, 
+sol <- remlf90(fixed = cbind(pheno[,12], pheno[,13]) ~ N + rep, 
                generic = list(GEBV = list(Za, Ga, var.ini = covg)), 
                data = pheno, 
                method = "em", 
                var.ini = list(covr))
+
+# G and R varcomp via MT-GBLUP
+sol$var
 
 ## predicted values for the test set
 blupsA <- as.matrix(sol$ranef[[1]][[1]])
@@ -115,10 +119,7 @@ rownames(blupsB) <- colnames(Za)
 GEBV.MT = data.frame(
   gid = colnames(Za),
   GEBV_A = blupsA[,1], 
-  EBV_B = blupsB[,1])
-
-# G and R varcomp via MT-GBLUP
-sol$var
+  GEBV_B = blupsB[,1])
 
 # the new correlation between the traits
 cor(GEBV.MT[,2:3])
@@ -154,7 +155,7 @@ head(SH)
 # define the desired genetic gains per traits in genetic standard deviations
 desired <- c(1, 1)
 # G correlation matrix x desired genetic gains in standard deviations
-(b.pb <- solve(cov(scale(GEBVs[,2:3]))) %*% as.matrix(desired))
+(b.pb <- MASS::ginv(cov(scale(GEBVs[,2:3]))) %*% as.matrix(desired))
 PB <- as.matrix(scale(GEBVs[,2:3])) %*% b.pb
 head(PB)
 
