@@ -3,10 +3,12 @@
 # Lab 12 - Genomic Selection
 # Roberto Fritsche-Neto
 # roberto.neto@ncsu.edu
-# Latest update: July 8, 2025
+# Latest update: June 2, 2026
 ###################################################
 
 # loading data
+# Phenotypic values obtained from the two-step analysis.
+# dBLUP: Adjusted phenotypic values used as response variables for GS
 Y <- readRDS("pheno2step")
 head(Y)
 str(Y)
@@ -17,8 +19,12 @@ Y$gidD <- Y$gid
 head(Y)
 
 # loading kernels
+# Ga = additive genomic relationship matrix
+# Describes expected covariance among individuals due to additive gene action.
 Ga <- readRDS("Ga")
 dim(Ga)
+# Gd = dominance genomic relationship matrix
+# Describes covariance caused by dominance deviations.
 Gd <- readRDS("Gd")
 dim(Gd)
 
@@ -31,21 +37,28 @@ dim(Gd)
 all(Y$gid == colnames(Gd))
 
 # creating the Za for additive effects
+# connect phenotypic observations to additive or dominance effects
+# Rows    = observations
+# Columns = genotypes
 Za <- model.matrix(~ -1 + gid, data = Y)
 colnames(Za) <- gsub("gid", "", colnames(Za), fixed = T)
 dim(Za)
 Za[1:6, 1:6]
 
-# creating the Zd for additive effects
+# creating the Zd for dominance effects
 Zd <- model.matrix(~ -1 + gidD, data = Y)
-colnames(Zd) <- gsub("gidD", "", colnames(Za), fixed = T)
+colnames(Zd) <- gsub("gidD", "", colnames(Zd), fixed = T)
 dim(Zd)
 Zd[1:6, 1:6]
 
 ##################### GS using A model ####################
 library(breedR)
 
-# Cross-validation settings 
+# Cross-validation settings - Five-fold cross-validation:
+# 80% of individuals are used for training
+# 20% are used for validation
+# This process is repeated five times using
+# different random partitions.
 nfold <- 5 # training and validation sizes
 replicates <- 5 # repeat this procedure 5 times
 
@@ -72,7 +85,8 @@ for (r in 1:replicates) {
                    generic = list(A = list(Za, Ga)), 
                    data = YGS, 
                    method = "em")
-
+sol$ranef$A
+    
     # reorganizing BLUPS
     BLUPS <- data.frame(gid = colnames(Za),
                         GEBV = sol$ranef$A[[1]][,1])
@@ -105,7 +119,11 @@ for (r in 1:replicates) {
 }
 
 
-# estimate the KPI mean
+# Predictive Ability (PA)
+# Correlation between observed phenotypes and
+# genomic predictions in the validation set.
+# PA is one of the most common metrics used to
+# evaluate genomic selection models.
 head(output_A)
 tail(output_A)
 (resultA <- apply(output_A[,4:6], 2, mean)) 
@@ -151,7 +169,19 @@ colnames(GEBVs) <- "GEBV"
 head(GEBVs)
 dim(GEBVs)
 
-##################### GS using A + D model + BLUES and weights ####################
+######## Selection of top 10% hybrids and response to selection ##############
+top10 <- order(GEBVs[,1], decreasing = TRUE)[1:round(0.10*nrow(GEBVs))]
+selected <- GEBVs[top10, ]
+mean(selected)
+mean(GEBVs)
+selection.differential <- mean(selected) - mean(GEBVs)
+selection.differential
+
+###############################################################################
+##################### GS using A + D model + BLUES and weights ################
+###############################################################################
+
+head(Y)
 
 # Cross-validation settings 
 nfold <- 5 # training and validation sizes
@@ -226,8 +256,20 @@ ggplot(output_AD, aes(x = method, y = PA)) +
 # combining all results and methods
 results.all <- rbind(output_A, output_AD)
 
-ggplot(results.all, aes(x = method, y = PA)) + 
-  geom_boxplot(notch = TRUE, outlier.colour = "red", outlier.shape = 16, outlier.size = 2)+
-  geom_jitter(position=position_jitter(0.2))
+# Create boxplot with Kruskal-Wallis test result
+library(ggstatsplot)
+ggbetweenstats(
+  data = results.all,
+  x = method,
+  y = PA,
+  type = "nonparametric",
+  pairwise.comparisons = TRUE,
+  centrality.plotting = TRUE,
+  bf.message = FALSE,
+  messages = FALSE,
+  results.subtitle = TRUE)
+
+# the actual p-value
+wilcox.test(PA ~ method, data = results.all)
 
 ########### the end ################

@@ -3,19 +3,28 @@
 # Lab 10 - Adjusting phenotypes and Diallels
 # Roberto Fritsche-Neto
 # roberto.neto@ncsu.edu
-# Latest update: July 8, 2025
+# Latest update: June 1, 2026
 #############################################
 
-##################### adjusting phenotypes for two-set analysis ###############
+################### ADJUSTING PHENOTYPES FOR TWO-STEP ANALYSIS ##############
+# In genomic prediction, it is common to first adjust phenotypes
+# for environmental effects and then use the adjusted values
+# as response variables in a second-stage analysis.
 # loading files
 pheno <- readRDS("pheno")
 head(pheno)
 
-# creating a col for interaction or nested effects
+# Create a genotype × environment (or genotype × nursery) factor.
+# This term captures genotype-specific deviations across locations.
 pheno$GN <- as.factor(paste0(pheno$gid, pheno$N))
 head(pheno)
 
-# adjusting the model 
+# Model 1:
+# Genotypes are considered FIXED effects.
+# The estimated genotype effects are BLUEs
+# (Best Linear Unbiased Estimates).
+# BLUEs are often used when the objective is
+# direct comparison among observed genotypes.
 library(breedR)
 
 # First way - genotypes as fixed
@@ -29,26 +38,40 @@ solF <- remlf90(fixed = SDMadj ~ rep + N + gid,
 # GE deviations
 head(solF$ranef$GN[[1]])
 
-# Second way - deregressing phenotypes
+# Model 2:
+# Genotypes are considered RANDOM effects.
+# This model produces BLUPs
+# (Best Linear Unbiased Predictions).
+# BLUPs shrink estimates according to the amount
+# of available information and are preferred for
+# genomic prediction applications.
+
 solR <- remlf90(fixed = SDMadj ~ N, 
                 random = ~ rep + gid + GN, 
                 method = "em", 
                 data = pheno)
 (sol.random <- solR$ranef$gid)
 
-# realiability
+# Reliability - measures the precision of each BLUP.
+# Values close to 1 indicate highly accurate estimates.
+# Values close to 0 indicate little information.
 (rel <- 1 - (sol.random[[1]][,2])^2/solR$var[2])
 mean(rel)
 
 #accuracy
 (Ac.MPS <- sqrt(mean(rel)))
 
-# derregressing BLUPS
+# Deregressed BLUPs remove the shrinkage effect
+# and are commonly used as response variables
+# in genomic prediction studies.
 dblup <- sol.random[[1]][,1]/rel
 dblup
 
-# weights
-c <- 0.5 # this constant is amount of variation that we expect not be explained by markers
+# Weights - account for different levels of confidence
+# among deregressed phenotypes.
+# More reliable observations receive larger weights
+# during genomic prediction analyses.
+c <- 0.5 # this constant is amount of variation we expect not be explained by markers
 (hg <- round(solR$var[2] / (solR$var[2] + solR$var[3] + solR$var[4]),2)) # heritability
 (w <- (1 - hg)/(c + (1 - rel) / rel*hg))
 
@@ -77,21 +100,37 @@ pheno2step <- droplevels.data.frame(pheno2step[pheno2step$gid %in% hybrids,])
 # saving the newest file
 saveRDS(pheno2step, "pheno2step")
 
-################################ MATING DESIGNS #########################
+###############################################################################
+# COMPARISON OF PEDIGREE AND GENOMIC MODELS
+###############################################################################
+# Here we compare several genetic models:
+# Model I    = Individuals assumed unrelated
+# Model A    = Pedigree relationship matrix
+# Model Ga   = Genomic additive relationship matrix
+# Model GaGd = Additive + dominance genomic effects
+# Model H = A + Ga together
+# These models allow us to quantify how much genetic variance is captured by pedigree versus marker information.
 
 # loading data and a library
 pheno <- readRDS("pheno")
 A <- readRDS("A")
 Ga <- readRDS("Ga")
 Gd <- readRDS("Gd")
+H <- readRDS("H")
 
-# creating some incidence matrices for genetic effects
+# creating some incidence matrices (Z) for genetic effects
+# The incidence matrix links observations
+# to genetic effects.
+# Rows    = phenotypic observations
+# Columns = genetic levels (genotypes)
+
 # additive
 Za <- model.matrix(~ -1 + gid, data = pheno)
 Za[1:5,1:5]
 dim(Za)
 colnames(Za) <- gsub("gid", "", colnames(Za), fixed = T)
 all(pheno$gid %in% colnames(Za))
+
 # dominance
 pheno$gidD <- pheno$gid
 Zd <- model.matrix(~ -1 + gidD, data = pheno)
@@ -143,6 +182,17 @@ modGaGd <- remlf90(fixed = SDMadj ~ N + rep,
 (ha.GaGd <- varGaGd[1] / (varGaGd[1] + varGaGd[2] + varGaGd[3]))
 (hg.GaGd <- (varGaGd[1] + varGaGd[2]) / (varGaGd[1] + varGaGd[2] + varGaGd[3]))
 
+
+## model H
+modH <- remlf90(fixed = SDMadj ~ N + rep, 
+                 random = ~ 1, 
+                 generic = list(AD = list(Za, H)), 
+                 method = "em",
+                 data = pheno)
+
+(varH <- modH$var)
+(hg.H <- varH[1] / (varH[1] + varH[2]))
+
 ###################
 # BLUPS
 ##################
@@ -151,6 +201,7 @@ BLUPS <- data.frame(gid = colnames(Za),
                     I = modI$ranef$gid[[1]][,1],
                     A = modA$ranef$AD[[1]][,1],
                     Ga = modGa$ranef$AD[[1]][,1],
+                    H = modH$ranef$AD[[1]][,1],
                     GaGd = modGaGd$ranef$AD[[1]][,1])
 
 head(BLUPS)
@@ -159,11 +210,19 @@ require(PerformanceAnalytics)
 # correlarion betwwen BLUPS ontaines from differente methods
 chart.Correlation(BLUPS[,-1], histogram = TRUE, pch = 1, method = "spearman")
 
+###############################################################################
+# NORTH CAROLINA DESIGN II (NCII)
+###############################################################################
+# NCII partitions hybrid performance into:
+# GCA (General Combining Ability)
+#   = additive effects contributed by parents
+# SCA (Specific Combining Ability)
+#   = non-additive effects specific to a cross
 
-############### Half-diallel or NCII - GS-based method ########################
-# selecting only the data that correspond to hybrids
+# This design is commonly used for hybrid breeding
+# and heterotic pool development selecting only the data that correspond to hybrids
 phenoSC <- droplevels.data.frame(pheno[pheno$type == "sc",])
-
+dim(Ga)
 # Ga for females
 Ga[1:7, 1:7]
 Ga.f <- Ga[1:7, 1:7]
@@ -216,11 +275,16 @@ NCII <- remlf90(fixed = SDMadj ~ N + rep,
     (varNCII[1] + varNCII[2] + varNCII[3] + varNCII[4]))
 
 # breeding values
+NCII$ranef$Ga.f
 BV.f <- NCII$ranef$Ga.f[[1]]
 BV.m <- NCII$ranef$Ga.m[[1]]
 head(BV.f)
 head(BV.m) 
 
+# Breeding values are converted into
+# General Combining Ability (GCA) estimates.
+# GCA represents the average contribution
+# of a parent across multiple hybrid combinations.
 # CGA
 GCA.f <- BV.f / 2
 GCA.m <- BV.m / 2
@@ -228,12 +292,36 @@ head(GCA.f)
 head(GCA.m)   
 
 #SCA 
+# SCA measures whether a specific hybrid performs
+# better or worse than expected based on parental GCA.
+# High positive SCA indicates favorable
+# non-additive interactions.
+NCII$ranef$Gd.sc
 SCA <- NCII$ranef$Gd.sc[[1]]
 head(SCA)
 
+###############################################################################
+# FULL DIALLEL ANALYSIS
+###############################################################################
+# A full diallel evaluates all possible parental combinations.
+# This analysis simultaneously estimates:
+# GCA = average parental performance
+# SCA = specific hybrid deviations
+
+# Results can be used to:
+#   1. Define heterotic pools
+#   2. Select testers
+#   3. Predict unobserved crosses
+
 ################################################################################
-###### Building heterotic pools (dataset does not help, but let's anyway) ######
+# Building heterotic pools (dataset does not help, but let's do anyway)
 ################################################################################
+# Heterotic pools are groups of parents that
+# maximize hybrid performance when crossed
+# with members of another pool.
+# Here, clustering is based on estimated
+# SCA relationships among parents.
+
 pheno <- readRDS("pheno")
 # create a col for the interaction female x males
 pheno$fm <- paste0(pheno$female, pheno$male) 
@@ -326,7 +414,16 @@ k$size
 sum(k$size)
 (heterotic.pools <- data.frame(sort(k$cluster)))
 
+####################
 # Selecting testers
+####################
+# Testers are representative parents
+# chosen from each heterotic pool.
+# A common strategy is selecting the parent
+# with the highest GCA within each pool,
+# since these individuals tend to produce
+# superior hybrids across many crosses.
+
 GCA <- FD$ranef$GCA[[1]]
 rownames(GCA) <- colnames(Gp)
 GCA

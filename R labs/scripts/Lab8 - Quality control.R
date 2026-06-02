@@ -3,7 +3,7 @@
 # Lab 8 - Quality control of marker and phenotypic data
 # Roberto Fritsche-Neto
 # roberto.neto@ncsu.edu
-# Latest update: Jun 30, 2025
+# Latest update: Jun 1, 2026
 #######################################################
 
 ############################################################
@@ -26,12 +26,21 @@ pheno$Y <- as.numeric(pheno$col)
 str(pheno)
 
 # phenotypic correlation between traits
-round(cor(pheno[ ,10:12], use = "pairwise"),2)
-#install.packages("PerformanceAnalytics")
-library("PerformanceAnalytics")
-chart.Correlation(as.matrix(na.omit(pheno[,10:12])), histogram = TRUE, pch = 1)
+cor_matrix <- round(cor(pheno[,10:12], use = "pairwise.complete.obs"), 2)
+cor_matrix
 
-# identifying outliers
+library("PerformanceAnalytics")
+chart.Correlation(
+  as.matrix(na.omit(pheno[,10:12])),
+  histogram = TRUE,
+  pch = 16
+)
+
+############################################################
+# Outlier detection
+############################################################
+# We fit a linear model accounting for design effects and
+# identify observations with unusually large residuals.
 boxplot(pheno$SDM, col = "red")
 #install.packages("lme4")
 library(lme4)
@@ -42,19 +51,40 @@ library(car)
 pheno[outlier,  "SDM"]
 pheno[outlier, "SDM"] <- NA
 
-# check the experimental design and spatial distribution
+
+# another way, based on Cook’s Distance Diagnostics and Outlier Detection 
+#The common cutoff for defining outliers is 4/(n−p), 
+# where n is the number of observations and p is the number of parameters
+library(remotes)
+library(datacooks)
+df1 <- datacooks(fit, threshold= 4, clean= FALSE)
+dim(df1)
+df2= datacooks(fit, threshold= 4, clean= TRUE)
+dim(df2)
+
+############################################################
+# Experimental design and spatial distribution
+############################################################
 library(desplot)
 d1 <- desplot(pheno, SDM ~ X*Y, out1 = rep, out2 = N,
               out2.gpar=list(col = "green", lwd = 1, lty = 1))
 print(d1)
 
-# testing for normality
+############################################################
+# Normality assessment
+############################################################
+# Many statistical models assume normally distributed
+# residuals rather than normally distributed raw data.
+# Nevertheless, evaluating the trait distribution provides
+# useful information about potential transformations.
 # First lets check using patterns
 shapiro.test(rnorm(length(pheno$SDM))) # normal distribution
 shapiro.test(runif(length(pheno$SDM))) # uniform distribution
 # then, 
 shapiro.test(pheno$SDM)
 
+# Apply automatic normalization methods and select the
+# transformation that best approximates normality.
 #install.packages("bestNormalize")
 require(bestNormalize)
 SDMadj <- bestNormalize(pheno$SDM, standardize = FALSE, allow_orderNorm = TRUE, out_of_sample = FALSE)
@@ -63,7 +93,9 @@ shapiro.test(SDMadj$x.t)
 pheno$SDMadj <- SDMadj$x.t
 head(pheno)
 
-# What about the residuals?
+############################################################
+# Residual diagnostics
+############################################################
 # Quartile‐Quartile (Q‐Q) normality plot for residuals
 fit <- lm(SDM ~ type + row + col + N + gid, data = pheno)
 fit2 <- lm(SDMadj ~ type + row + col + N + gid, data = pheno)
@@ -82,9 +114,17 @@ str(pheno)
 head(pheno)
 saveRDS(pheno, "pheno")
 
-#####################################
-############# Markers ###############
-#####################################
+
+###############################################################################
+################################## Markers ###################################
+###############################################################################
+# Marker QC removes:
+# 1. SNPs with excessive missing data
+# 2. Rare alleles (low MAF)
+# 3. Poorly genotyped markers
+# 4. Markers requiring imputation
+# This improves genomic relationship estimates and
+# downstream prediction accuracy.
 
 #loading file
 geno <- readRDS("../data/geno")
@@ -125,8 +165,11 @@ QC <- raw.data(data = as.matrix(M),
                frame = "wide", 
                hapmap = hapmap, 
                sweep.sample = 1, #0.80
-               maf = 0.15, # 0.05 
-               call.rate = 0.90, 
+               maf = 0.15, # 0.05 # Minor allele frequency threshold
+               # Rare variants contribute little information and may
+               # inflate sampling variance
+               call.rate = 0.90,   # Minimum sample call rate
+               # Marker must be scored in at least 90% of individuals
                base = TRUE, 
                imput = TRUE, 
                imput.type = "wright", 
@@ -146,7 +189,15 @@ hapmap <- QC$Hapmap
 dim(hapmap)
 head(hapmap)
 
-# Then, identify and remove remove markers in heterozigosity
+############################################################
+# Remove heterozygous markers
+############################################################
+# The population consists of highly inbred lines.
+# Therefore, heterozygous calls may indicate:
+# - genotyping errors
+# - residual heterogeneity
+# - sample contamination
+# We retain only markers containing homozygous genotypes.
 non.het.markers <- apply(M, 2, function(x){all(x != 1)})
 sum(non.het.markers)
 M <- M[, non.het.markers]
@@ -160,9 +211,18 @@ dim(hapmap)
 # verifying if all the markers into M matrix are in the same order into map
 identical(as.character(hapmap$rs), colnames(M))
 
-##############################
-# pruning markers based on LD
-##############################
+############################################################
+# Linkage disequilibrium (LD) pruning
+############################################################
+# Adjacent markers often carry redundant information
+# because they are highly correlated.
+# LD pruning removes markers that provide nearly identical
+# genetic information, reducing:
+# - computational burden
+# - matrix collinearity
+# - storage requirements
+# Here, markers with r² > 0.98 are considered redundant.
+
 # SNPRelate package
 # to install the package
 #if (!requireNamespace("BiocManager", quietly = TRUE))
@@ -227,7 +287,17 @@ identical(as.character(hapmap$rs), colnames(M))
 # close GDS
 snpgdsClose(genofile)
 
-######################## creating the marker set to hybrids as well ####################
+############################################################
+# Create hybrid marker matrix
+############################################################
+# Single-cross hybrids are generated by averaging the
+# parental marker scores.
+# Example:
+# Female = 0
+# Male   = 2
+# Hybrid = (0 + 2)/2 = 1
+# which represents the expected heterozygous genotype.
+
 phenoSC <- pheno[pheno$type == "sc",]
 dim(phenoSC)
 head(phenoSC)

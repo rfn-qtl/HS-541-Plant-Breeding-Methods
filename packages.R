@@ -9,9 +9,9 @@ packages <- c(
   "tidyr", "tibble", "ggplot2", "tidyverse", "reshape2", "breedR", "sp",
   "gaston", "RcppParallel", "Rcpp", "knitr", "CMplot", "EMMREML", "ape", "genetics",
   "mvtnorm", "MASS", "gtools", "gdata", "combinat", "gplots", "biganalytics",
-  "biglm", "DBI", "foreach", "bigmemory", "GAPIT", "PCAtools", "ggrepel",
+  "biglm", "DBI", "foreach", "bigmemory", "PCAtools", "ggrepel",
   "plotly", "ggpubr", "doMC", "doParallel", "iterators", "remotes", "metan",
-  "statgenGxE", "devtools", "AlphaSimR", "R6"
+  "statgenGxE", "devtools", "AlphaSimR", "R6", "ggstatsplot"
 )
 
 # Remove duplicates
@@ -28,7 +28,11 @@ install_if_missing <- function(pkg) {
 invisible(sapply(packages, install_if_missing))
 
 # packages from other sources than CRAN
+BiocManager::install("SNPRelate")
 BiocManager::install("impute")
 devtools::install_github(repo = 'italo-granato/snpReady', ref = 'dev')
 remotes::install_github("Biometris/statgenGxE", ref = "develop", dependencies = TRUE)
 devtools::install_github('famuvie/breedR')
+devtools::install_github("jiabowang/GAPIT",force=TRUE) 
+BiocManager::install('PCAtools')
+remotes::install_github("agronomy4future/datacooks", force= TRUE)
